@@ -108,7 +108,7 @@ Using this new interpretation of the commands, calculate the horizontal position
 # initial settings
 puz2 <- c(horiz = 0L, depth = 0L, aim = 0L)
 
-# functions for each instruction:
+# functions for each instruction
 down <- function (value, .vec = puz2) { 
   .vec["aim"] <- .vec["aim"] + value 
   .vec
@@ -144,6 +144,7 @@ for (i in seq_along(input)) {
   
 }
 
+# finally, multiply our horizontal position by depth for answer
 puz2["horiz"] * puz2["depth"]
 
 ```
