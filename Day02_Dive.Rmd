@@ -143,10 +143,38 @@ for (i in seq_along(input)) {
   }
   
 }
-
+-
 # finally, multiply our horizontal position by depth for answer
 puz2["horiz"] * puz2["depth"]
 
 ```
 
-Following these new instructions, we get a final answer of `1698850445` multiplying our final hoziontal position (1895) by our final depth (896491)
+Following these new instructions, we get a final answer of `1698850445` multiplying our final horizontal position (1895) by our final depth (896491)
+
+
+Puzzle 2 without a loop:
+
+```{r puzzle2 sans loop}
+tibble(input = input) %>% 
+  separate(input, into = c("cmd", "value"), sep = " ", convert = TRUE) %>% 
+  mutate(value = if_else(cmd == "up", -value, value), 
+         aim = cumsum(if_else(cmd != "forward", value, 0L)), 
+         horiz = cumsum(if_else(cmd == "forward", value, 0L)), 
+         depth = cumsum(if_else(cmd == "forward", aim * value, 0L)), 
+         answer = horiz * depth) %>% 
+   # pull last record as that's the last step
+  tail(1) %>% 
+  pull(answer)
+  
+```
+
+Above also gets correct answer of `1698850445`
+
+
+
+Puzzle 2 using `reduce` to iterate...
+
+```{r puzzle 2 with reduce}
+input
+```
+
