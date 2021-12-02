@@ -175,6 +175,33 @@ Above also gets correct answer of `1698850445`
 Puzzle 2 using `reduce` to iterate...
 
 ```{r puzzle 2 with reduce}
-input
+# initial values
+puz2 <- c(x = 0L, aim = 0L, depth = 0L)
+
+dive <- function(.vec, .inst) {
+  
+  spl <- str_split(.inst, " ")[[1]]
+  dir <- spl[1]
+  val <- parse_integer(spl[2])
+  
+  if (dir == "down") {
+    .vec["aim"] <- .vec["aim"] + val
+    
+  } else if (dir == "up") {
+    .vec["aim"] <- .vec["aim"] - val
+    
+  } else if (dir == "forward") {
+    .vec["x"] <- .vec["x"] + val
+    .vec["depth"] <- .vec["depth"] + (.vec["aim"] * val)
+    
+  }
+  
+  .vec
+}
+
+puz2 <- reduce(input, dive, .init = puz2)
+
+puz2["x"] * puz2["depth"]
 ```
 
+Above also gets the same correct answer of `1698850445`
