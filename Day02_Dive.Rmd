@@ -56,16 +56,20 @@ input <- readLines("input_day02.txt")
 ```{r puzzle1}
 puz1 <- 
   tibble(input = input) %>% 
+    # could do this all in one shot, but more easily understandable as different evals
   mutate(type = if_else(str_detect(input, "forward"), "horiz", "depth"), 
          value = parse_number(input), 
          posneg = if_else(str_detect(input, "up"), -1L, 1L), 
-         final_val = value * posneg) %>% 
-  count(type, wt = final_val, name = "total")
-# count above functions same as below:
+         final_val = value * posneg) 
+
+puz1 %>% 
+  count(type, wt = final_val, name = "total") %>% 
+  pull(total) %>% 
+  prod()
+
+# count function above works the same as below:
 # group_by(type) %>% 
 # summarize(total = sum(final_val))
-
-prod(puz1$total)
 ```
 
 Multiplying the final horizontal position (1895) by the final depth (894) we get a result of `1694130`
