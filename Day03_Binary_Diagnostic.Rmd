@@ -70,19 +70,20 @@ puz1 <- input
 # split strings into individual strings, convert to numbers, and then put in a matrix
 # column sums will tell us what is more common in each position -- if the colsum is greater
 #   than half the total rows in the matrix, then 1's are more common, otherwise 0's are
-csums <- 
+puz1_mat <- 
   puz1 %>% 
   str_split("") %>% 
   unlist() %>% 
   parse_number() %>% 
-  matrix(nrow = length(puz1), byrow = TRUE) %>% 
-  colSums()
+  matrix(nrow = length(puz1), byrow = TRUE) 
+
+csums <- colSums(puz1_mat)
 
 # gamma is most common value
-puz1_gamma <- if_else(csums > (length(puz1) / 2), 1, 0)
+puz1_gamma <- if_else(csums > (nrow(puz1_mat) / 2), 1, 0)
 
 # epsilon is least common values, which is inverse of gamma
-puz1_epsilon <- if_else(puz1_gamma == 1, 0, 1)
+puz1_epsilon <- 1 - puz1_gamma
 
 
 binary_to_int(puz1_gamma) * binary_to_int(puz1_epsilon)
@@ -95,8 +96,86 @@ Our power consumption is `845186`
 
 # Puzzle 2
 
+Next, you should verify the *life support rating*, which can be determined by multiplying the *oxygen generator rating* by the *CO2 scrubber rating*.
+
+Both the oxygen generator rating and the CO2 scrubber rating are values that can be found in your diagnostic report - finding them is the tricky part. Both values are located using a similar process that involves filtering out values until only one remains. Before searching for either rating value, start with the full list of binary numbers from your diagnostic report and *consider just the first bit of those numbers*. Then:
+
+- Keep only numbers selected by the *bit criteria* for the type of rating value for which you are searching. Discard numbers which do not match the bit criteria.
+- If you only have one number left, stop; this is the rating value for which you are searching.
+- Otherwise, repeat the process, considering the next bit to the right.
+
+
+The bit criteria depends on which type of rating value you want to find:
+
+- To find *oxygen generator rating*, determine the *most common value* (0 or 1) in the current bit position, and keep only numbers with that bit in that position. If 0 and 1 are equally common, keep values with a 1 in the position being considered.
+
+- To find *CO2 scrubber rating*, determine the *least common value* (0 or 1) in the current bit position, and keep only numbers with that bit in that position. If 0 and 1 are equally common, keep values with a 0 in the position being considered.
+
+
+For example, to determine the *oxygen generator rating* value using the same example diagnostic report from above:
+
+- Start with all 12 numbers and consider only the first bit of each number. There are more 1 bits (7) than 0 bits (5), so keep only the 7 numbers with a 1 in the first position: 11110, 10110, 10111, 10101, 11100, 10000, and 11001.
+- Then, consider the second bit of the 7 remaining numbers: there are more 0 bits (4) than 1 bits (3), so keep only the 4 numbers with a 0 in the second position: 10110, 10111, 10101, and 10000.
+- In the third position, three of the four numbers have a 1, so keep those three: 10110, 10111, and 10101.
+- In the fourth position, two of the three numbers have a 1, so keep those two: 10110 and 10111.
+- In the fifth position, there are an equal number of 0 bits and 1 bits (one each). So, to find the oxygen generator rating, keep the number with a 1 in that position: 10111.
+- As there is only one number left, stop; the oxygen generator rating is 10111, or 23 in decimal.
+
+Then, to determine the *CO2 scrubber rating* value from the same example above:
+
+- Start again with all 12 numbers and consider only the first bit of each number. There are fewer 0 bits (5) than 1 bits (7), so keep only the 5 numbers with a 0 in the first position: 00100, 01111, 00111, 00010, and 01010.
+- Then, consider the second bit of the 5 remaining numbers: there are fewer 1 bits (2) than 0 bits (3), so keep only the 2 numbers with a 1 in the second position: 01111 and 01010.
+- In the third position, there are an equal number of 0 bits and 1 bits (one each). So, to find the CO2 scrubber rating, keep the number with a 0 in that position: 01010.
+- As there is only one number left, stop; the CO2 scrubber rating is 01010, or 10 in decimal.
+- Finally, to find the life support rating, multiply the oxygen generator rating (23) by the CO2 scrubber rating (10) to get 230.
+
+Use the binary numbers in your diagnostic report to calculate the oxygen generator rating and CO2 scrubber rating, then *multiply them together*. *What is the life support rating of the submarine*? (Be sure to represent your answer in decimal, not binary.)
 
 ```{r puzzle2}
 
+puz2_eval <- function(.eval_type, .mat = puz1_mat) {
+  
+  # how many columsn do we need to iterate through
+  nc <- ncol(.mat)
+  
+  for (i in seq_len(nc)) {
+    
+    # what is the half-point value, in case of ties
+    len_half <- nrow(.mat) / 2
+    
+    # process column sum for our matrix as this column location
+    cs <- colSums(.mat)[[i]]
+    
+    if (cs == len_half) {
+      # if the column sum equals our half-point value 1's and 0's are equally column
+      # in this case, return the type we're evaluating against 
+      bit <- .eval_type
+      
+    } else if (cs > len_half) {
+      # if cs > len_half then 1's are more common
+      # .eval_type 1 returns most common, 0 returns least common
+      bit <- if_else(.eval_type == 1, 1, 0)
+      
+    } else {
+      # reverse of step above
+      bit <- if_else(.eval_type == 1, 0, 1)
+    }
+    
+    .mat <- .mat[.mat[, i] == bit, , drop = FALSE]
+    
+    if (nrow(.mat) == 1) break
+  }
+  
+  # convert above result to integer vector and then 
+  #   use custom function to get number from binary
+  as.integer(.mat) %>% 
+    binary_to_int()
+  
+}
+
+puz2_eval(1) * puz2_eval(0)
+
+
 ```
 
+`4636702` is our life support rating.
