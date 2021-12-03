@@ -60,9 +60,22 @@ input <- readLines("input_day03.txt")
 ```{r puzzle1}
 # function below should convert an integer vector to a number, where the integer vector
 #   input is the binary number spit into individual positions/values
+# binary_to_int <- function(.vec) {
+#   reduce(.vec, function(x, y) { (x * 2) + y } )
+# }
+
+# don't actually need above custom function -- given a character string, we can use the 
+#   strtoi() function with argument "base = 2"
+# rewrote function as below which takes our final values as numbers, converts it back to 
+#   a string, and then uses strtoi()
+
 binary_to_int <- function(.vec) {
-  reduce(.vec, function(x, y) { (x * 2) + y } )
+  .vec %>% 
+    as.character() %>% 
+    str_c(collapse = "") %>% 
+    strtoi(base = 2L)
 }
+
 
 # use this variable to switch between test and input values
 puz1 <- input
@@ -83,10 +96,9 @@ csums <- colSums(puz1_mat)
 puz1_gamma <- if_else(csums > (nrow(puz1_mat) / 2), 1, 0)
 
 # epsilon is least common values, which is inverse of gamma
-puz1_epsilon <- 1 - puz1_gamma
 
 
-binary_to_int(puz1_gamma) * binary_to_int(puz1_epsilon)
+binary_to_int(puz1_gamma) * binary_to_int(1 - puz1_gamma)
 
 ```
 
