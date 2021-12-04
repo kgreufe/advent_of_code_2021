@@ -15,7 +15,7 @@ library(tidyverse)
 
 # Day 00: Template
 
-# Puzzle 1
+## Puzzle 1
 
 
 ```{r input}
@@ -31,7 +31,7 @@ library(tidyverse)
 
 
 
-# Puzzle 2
+## Puzzle 2
 
 
 ```{r puzzle2}
