@@ -1,0 +1,199 @@
+---
+title: ''
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+options(scipen = 20)
+
+library(tidyverse)
+```
+
+# Day 04: Giant Squid
+
+## Puzzle 1
+
+You're already almost 1.5km (almost a mile) below the surface of the ocean, already so deep that you can't see any sunlight. What you *can* see, however, is a giant squid that has attached itself to the outside of your submarine.
+
+Maybe it wants to play bingo?
+
+Bingo is played on a set of boards each consisting of a 5x5 grid of numbers. Numbers are chosen at random, and the chosen number is *marked* on all boards on which it appears. (Numbers may not appear on all boards.) If all numbers in any row or any column of a board are marked, that board *wins*. (Diagonals don't count.)
+
+The submarine has a *bingo subsystem* to help passengers (currently, you and the giant squid) pass the time. It automatically generates a random order in which to draw numbers and a random set of boards (your puzzle input). For example:
+
+`7,4,9,5,11,17,23,2,0,14,21,24,10,16,13,6,15,25,12,22,18,20,8,19,3,26,1`
+`              `
+`22 13 17 11  0`
+` 8  2 23  4 24`
+`21  9 14 16  7`
+` 6 10  3 18  5`
+` 1 12 20 15 19`
+`              `
+` 3 15  0  2 22`
+` 9 18 13 17  5`
+`19  8  7 25 23`
+`20 11 10 24  4`
+`14 21 16 12  6`
+`              `
+`14 21 17 24  4`
+`10 16 15  9 19`
+`18  8 23 26 20`
+`22 11 13  6  5`
+` 2  0 12  3  7`
+
+After the first five numbers are drawn (7, 4, 9, 5, and 11), there are no winners.
+
+After the next six numbers are drawn (17, 23, 2, 0, 14, and 21), there are still no winners.
+
+Finally, 24 is drawn.
+
+At this point, the third board wins because it has at least one complete row or column of marked numbers (in this case, the entire top row is marked: `14 21 17 24 4`).
+
+The *score* of the winning board can now be calculated. Start by finding the *sum of all unmarked numbers* on that board; in this case, the sum is 188. Then, multiply that sum by *the number that was just called* when the board won, 24, to get the final score, 188 * 24 = 4512.
+
+To guarantee victory against the giant squid, figure out which board will win first. *What will your final score be if you choose that board?*
+
+```{r input}
+test <- "7,4,9,5,11,17,23,2,0,14,21,24,10,16,13,6,15,25,12,22,18,20,8,19,3,26,1
+
+22 13 17 11  0
+ 8  2 23  4 24
+21  9 14 16  7
+ 6 10  3 18  5
+ 1 12 20 15 19
+
+ 3 15  0  2 22
+ 9 18 13 17  5
+19  8  7 25 23
+20 11 10 24  4
+14 21 16 12  6
+
+14 21 17 24  4
+10 16 15  9 19
+18  8 23 26 20
+22 11 13  6  5
+ 2  0 12  3  7"
+
+input <- read_file("input_day04.txt")
+
+# function to parse out the instructions as
+#   (1) a character vector of instructions
+#   (2) a list of matrices for the bingo cards
+# Both are saved out to the global environment
+
+parse_input <- function(.input) {
+  
+  .x <- str_split_fixed(.input, "\n\n", 2)
+  
+  .y <- 
+    str_split(.x[, 1], ",") %>% 
+    pluck(1) %>% 
+    str_pad(., width = 2, side = "left", pad = "0")
+  
+  assign("instructions", .y, globalenv())
+  
+  .x <- .x[, -1]
+  
+  .x <- 
+    str_split_fixed(.x, "\n\n", n = str_count(.x, "\n\n") + 1) %>% 
+    as.list() %>% 
+    map(.x = ., 
+        .f = ~ str_replace_all(.x, "\n", " ") %>% 
+          str_replace_all("\\s{1,}", ",") %>% 
+          {str_split(., ",")[[1]]} %>% 
+          .[. != ""] %>% 
+          str_pad(., width = 2, side = "left", pad = "0") %>% 
+          matrix(nrow = 5, byrow = TRUE) )
+  
+  assign("bingo", .x, globalenv())
+}
+
+# swap "test" or "input" here for which we want to run in puzzles
+parse_input(input)
+
+```
+
+
+```{r puzzle1}
+# str_replace returns a character vector and removes the "matrix" class
+# using base gsub instead as it retains the "matrix" structure we want
+
+# loop to process instructions
+for (i in seq_along(instructions)) {
+  
+  v <- instructions[i]
+  
+  # mark with an "x" this bingo call
+  bingo <- map(.x = bingo, 
+               .f = ~ gsub(v, "x", .x))
+  
+  # rowsum check
+  rsc <- 
+    map(.x = bingo, 
+        .f = ~ {. == "x"} %>% 
+          rowSums() %>% 
+          {. == 5} %>% 
+          sum()
+    ) %>% 
+    unlist() %>% 
+    sum()
+  
+  if (rsc > 0) {
+    last_instr <- parse_number(v)
+    fnc <- "rowSums"
+    break
+  }
+  
+  # colsum check
+  csc <- 
+    map(.x = bingo, 
+        .f = ~ {. == "x"} %>% 
+          colSums() %>% 
+          {. == 5} %>% 
+          sum()
+    ) %>% 
+    unlist() %>% 
+    sum()
+  
+  if (csc > 0) {
+    last_instr <- parse_number(v)
+    fnc <- colSums
+    break
+  }
+}
+
+
+# now let's find which board is the one that caused the break
+puz1_board_number <- 
+  map(.x = bingo, 
+      .f = ~ {. == "x"} %>% 
+        rlang::exec(fnc, .) %>% 
+        max()) %>% 
+  unlist() %>% 
+  {which(. == 5)}
+
+puz1_board <- bingo[[puz1_board_number]]
+
+# sum of all unmarked numbers by the last instructions processed in the answer to puzzle1
+gsub("x", "0", puz1_board) %>% 
+  parse_number() %>% 
+  sum() %>% 
+  {. * last_instr}
+```
+
+`12796` is the answer for our puzzle 1 input
+
+
+
+
+## Puzzle 2
+
+
+```{r puzzle2}
+
+```
+
