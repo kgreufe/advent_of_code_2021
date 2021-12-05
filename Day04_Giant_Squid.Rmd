@@ -11,6 +11,7 @@ knitr::opts_chunk$set(echo = TRUE)
 options(scipen = 20)
 
 library(tidyverse)
+library(rlang)
 ```
 
 # Day 04: Giant Squid
@@ -112,13 +113,14 @@ parse_input <- function(.input) {
   assign("bingo", .x, globalenv())
 }
 
-# swap "test" or "input" here for which we want to run in puzzles
-parse_input(input)
-
 ```
 
 
 ```{r puzzle1}
+# swap "test" or "input" here for which we want to run in puzzles
+parse_input(input)
+
+
 # str_replace returns a character vector and removes the "matrix" class
 # using base gsub instead as it retains the "matrix" structure we want
 
@@ -161,7 +163,7 @@ for (i in seq_along(instructions)) {
   
   if (csc > 0) {
     last_instr <- parse_number(v)
-    fnc <- colSums
+    fnc <- "colSums"
     break
   }
 }
@@ -192,8 +194,87 @@ gsub("x", "0", puz1_board) %>%
 
 ## Puzzle 2
 
+On the other hand, it might be wise to try a different strategy: let the giant squid win.
+
+You aren't sure how many bingo boards a giant squid could play at once, so rather than waste time counting its arms, the safe thing to do is to *figure out which board will win last* and choose that one. That way, no matter which boards it picks, it will win for sure.
+
+In the above example, the second board is the last to win, which happens after 13 is eventually called and its middle column is completely marked. If you were to keep playing until this point, the second board would have a sum of unmarked numbers equal to 148 for a final score of 148 * 13 = 1924.
+
+Figure out which board will win last. *Once it wins, what would its final score be*?
 
 ```{r puzzle2}
+# rest global variables (boards)
+parse_input(input)
 
+for (i in seq_along(instructions)) {
+  
+  v <- instructions[i]
+  
+  # mark with an "x" this bingo call
+  bingo <- map(.x = bingo, 
+               .f = ~ gsub(v, "x", .x))
+  
+  # rowsum check
+  rsc <- 
+    map(.x = bingo, 
+        .f = ~ {.x == "x"} %>% 
+          rowSums() %>% 
+          max()) %>% 
+    unlist() %>% 
+    {which(. < 5)}
+  
+  # colsum check
+  csc <- 
+    map(.x = bingo, 
+        .f = ~ {.x == "x"} %>% 
+          colSums() %>% 
+          max()) %>% 
+    unlist() %>% 
+    {which(. < 5)}
+  
+  # no results yet (those that exist in both row and col sum checks)
+  nry <- intersect(rsc, csc)
+  
+  if (length(nry) == 1) {
+    # only one board left that hasn't gotten a bingo if intersection only has one value
+    last_instr_pos <- i
+    puz2_board_number <- nry
+    break
+  }
+}
+
+# above will get us down to one board that hasn't been solved yet.
+# from here, we'll just process the rest of the instructions until this one completes 
+#   a bingo too in order to get our answer
+
+last_board <- bingo[[puz2_board_number]]
+fncs <- c("rowSums", "colSums")
+
+for (i in (last_instr_pos + 1):length(instructions)) {
+
+  v <- instructions[i]
+  
+  last_board <- gsub(v, "x", last_board)
+  
+  chk <- map(.x = fncs, 
+             .f = ~ {last_board == "x"} %>% 
+               rlang::exec(.x, .) %>% 
+               max() ) %>% 
+    unlist() %>% 
+    {which(. == 5)}
+  
+  if (length(chk) > 0) {
+    # one either rowSums or colSums returns a good board, then break loop
+    last_instr_puz2 <- parse_number(v)
+    break
+  }
+}
+
+# take our last board, sum remaining values and multiply by the last instruction
+gsub("x", "0", last_board) %>% 
+  parse_number() %>% 
+  sum() %>% 
+  {. * last_instr_puz2}
 ```
 
+`18063` is the answer for our puzzle2 input
