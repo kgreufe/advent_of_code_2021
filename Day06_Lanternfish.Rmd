@@ -106,11 +106,9 @@ initial <-
          n = n.x + n.y) %>% 
   select(level, n)
 
-initial
-
-# at each step, we need to (in "parallel", not "serially")
-# (a) for any fish at level 0: add same number for next step at level 6 and 8
-# (b) shift each level down one to signify a day has passed (not including a)
+# at each step, we need to:
+# (a) shift each level down one to signify a day has passed 
+# (b) for any fish that were at level 0: add same number for next step at level 6 and 8
 
 fish_step <- function(.x, .ignore) {
   
@@ -142,6 +140,7 @@ After 80 days, we would have `371379` lanternfish.
 # Puzzle 2 =========================================================
 
 Same execution as above, just a longer reduce vector
+
 ```{r puzzle 2}
 reduce(.x = 1:256, .f = fish_step, .init = initial) %>% 
   pluck("n") %>% 
