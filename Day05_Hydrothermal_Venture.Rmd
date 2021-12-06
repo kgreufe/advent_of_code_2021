@@ -1,0 +1,181 @@
+---
+title: ''
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+options(scipen = 20)
+
+library(tidyverse)
+```
+
+# Day 05: Hydrothermal Venture
+
+## Puzzle 1
+
+You come across a field of hydrothermal vents on the ocean floor! These vents constantly produce large, opaque clouds, so it would be best to avoid them if possible.
+
+They tend to form in *lines*; the submarine helpfully produces a list of nearby lines of vents (your puzzle input) for you to review. For example:
+
+`0,9 -> 5,9`
+`8,0 -> 0,8`
+`9,4 -> 3,4`
+`2,2 -> 2,1`
+`7,0 -> 7,4`
+`6,4 -> 2,0`
+`0,9 -> 2,9`
+`3,4 -> 1,4`
+`0,0 -> 8,8`
+`5,5 -> 8,2`
+
+Each line of vents is given as a line segment in the format x1,y1 -> x2,y2 where x1,y1 are the coordinates of one end the line segment and x2,y2 are the coordinates of the other end. These line segments include the points at both ends. In other words:
+
+- An entry like 1,1 -> 1,3 covers points 1,1, 1,2, and 1,3.
+- An entry like 9,7 -> 7,7 covers points 9,7, 8,7, and 7,7.
+
+For now, *only consider horizontal and vertical lines*: lines where either x1 = x2 or y1 = y2.
+
+So, the horizontal and vertical lines from the above list would produce the following diagram:
+
+`.......1..`
+`..1....1..`
+`..1....1..`
+`.......1..`
+`.112111211`
+`..........`
+`..........`
+`..........`
+`..........`
+`222111....`
+
+In this diagram, the top left corner is 0,0 and the bottom right corner is 9,9. Each position is shown as *the number of lines which cover that point* or . if no line covers that point. The top-left pair of 1s, for example, comes from 2,2 -> 2,1; the very bottom row is formed by the overlapping lines 0,9 -> 5,9 and 0,9 -> 2,9.
+
+To avoid the most dangerous areas, you need to determine *the number of points where at least two lines overlap*. In the above example, this is anywhere in the diagram with a 2 or larger - a total of 5 points.
+
+Consider only horizontal and vertical lines. *At how many points do at least two lines overlap*?
+
+```{r input}
+test <- read_lines("0,9 -> 5,9
+8,0 -> 0,8
+9,4 -> 3,4
+2,2 -> 2,1
+7,0 -> 7,4
+6,4 -> 2,0
+0,9 -> 2,9
+3,4 -> 1,4
+0,0 -> 8,8
+5,5 -> 8,2")
+
+input <- read_lines("input_day05.txt")
+```
+
+
+This function will create:
+(a) the table of evaluation from the input in the global environment. This is useful
+      as it has a column for each input on whether it is a straight line or not
+(b) the list of matrices with each line segment marked with a 1 based on the evaluation
+      from table above
+      
+```{r parse input function}
+parse_input <- function(.x) {
+  
+  mat_size <- 
+    .x %>% 
+    str_split(" -> ") %>% 
+    map(.x = ., 
+        .f = ~ str_split(., ",") %>% 
+          unlist() %>% 
+          max() ) %>% 
+    unlist() %>% 
+    parse_number() %>% 
+    max() %>% 
+    {. + 1} # add 1 because puzzle's coordinates index is at zero
+  
+  # create blank matrices
+  .m <- vector("list", length = length(.x))
+  
+  .m <- map(.x = .m, 
+            .f = ~ matrix(rep(0L, mat_size^2), nrow = mat_size))
+  
+  .t <- 
+    tibble(input = .x) %>% 
+    separate(input, into = c("start", "end"), sep = " -> ") %>% 
+    separate(start, into = c("x0", "y0"), sep = ",") %>% 
+    separate(end, into = c("x1", "y1"), sep = ",") %>% 
+    mutate(across(.fns = ~ {parse_integer(.x) + 1L} ) ) %>% 
+    # add 1 as indexing in puzzle starts at zero
+    mutate(diffx = x1 - x0, 
+           diffy = y1 - y0, 
+           straight = if_else(diffy == 0L | diffx == 0L, TRUE, FALSE), 
+           yeval = if_else(diffy == 0L, 
+                           as.character(y1), 
+                           str_c(as.character(y1), ":", as.character(y0))), 
+           xeval = if_else(diffx == 0L, 
+                           as.character(x1), 
+                           str_c(as.character(x1), ":", as.character(x0))), 
+           expr = str_c("cbind(", yeval, ", ", xeval, ")") 
+           # cbind will let us create a combination of coordinates to subset a matrix to 
+           #    mark as part of the line segment we care about
+    )
+  
+  # create .t in global environment, as it has our eval on straight lines and such
+  assign("table_eval", .t, envir = globalenv())
+  
+  
+  for (i in seq_along(.m)) {
+    
+    # create full execution call as string, based on above evaluations
+    # this will change to a 1 in each appropriate matrix where the line segment crosses
+    .e <- str_c(".m[[", as.character(i), "]][", .t$expr[[i]],"] <- 1L" )
+    
+    .e <- parse(text = .e)
+    
+    eval(.e)
+    
+  }
+  
+  # create final matrix in global environment
+  assign("matrices", .m, envir = globalenv())
+}
+
+```
+
+
+
+For puzzle 1...
+Consider only horizontal and vertical lines. *At how many points do at least two lines overlap*
+
+```{r puzzle1}
+parse_input(input)
+
+# which inputs are straight lines?
+indices <- which(table_eval$straight == TRUE)
+
+# filter down to our matrices that only have straight lines
+puz1 <- matrices[indices]
+
+# condense down our matrices using reduce
+# we should get a single matrix counting the occurance at each location
+puz1 <- reduce(puz1, `+`)
+
+puz1 %>% 
+  .[. >= 2] %>% 
+  length()
+
+```
+
+We have `4421` points where at least two lines overlap.
+
+
+
+## Puzzle 2
+
+
+```{r puzzle2}
+
+```
+
