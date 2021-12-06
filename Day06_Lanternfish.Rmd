@@ -1,0 +1,152 @@
+---
+title: ''
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+options(scipen = 20)
+
+library(tidyverse)
+```
+
+# Day 06: Lanternfish
+
+# Puzzle 1 =========================================================
+
+The sea floor is getting steeper. Maybe the sleigh keys got carried this way?
+
+A massive school of glowing lanternfish swims past. They must spawn quickly to reach such large numbers - maybe *exponentially* quickly? You should model their growth rate to be sure.
+
+Although you know nothing about this specific species of lanternfish, you make some guesses about their attributes. Surely, *each lanternfish creates a new lanternfish once every 7 days*.
+
+However, this process isn't necessarily synchronized between every lanternfish - one lanternfish might have 2 days left until it creates another lanternfish, while another might have 4. So, you can model each fish as a single number that represents *the number of days until it creates a new lanternfish*.
+
+Furthermore, you reason, a *new* lanternfish would surely need slightly longer before it's capable of producing more lanternfish: two more days for its first cycle.
+
+So, suppose you have a lanternfish with an internal timer value of 3:
+
+- After one day, its internal timer would become 2.
+- After another day, its internal timer would become 1.
+- After another day, its internal timer would become 0.
+- After another day, its internal timer would reset to 6, and it would create a *new* lanternfish with an internal timer of 8.
+- After another day, the first lanternfish would have an internal timer of 5, and the second lanternfish would have an internal timer of 7.
+
+A lanternfish that creates a new fish resets its timer to 6, not 7 (because 0 is included as a valid timer value). The new lanternfish starts with an internal timer of 8 and does not start counting down until the next day.
+
+Realizing what you're trying to do, the submarine automatically produces a list of the ages of several hundred nearby lanternfish (your puzzle input). For example, suppose you were given the following list:
+
+`3,4,3,1,2`
+
+This list means that the first fish has an internal timer of 3, the second fish has an internal timer of 4, and so on until the fifth fish, which has an internal timer of 2. Simulating these fish over several days would proceed as follows:
+
+```
+Initial state: 3,4,3,1,2
+After  1 day:  2,3,2,0,1
+After  2 days: 1,2,1,6,0,8
+After  3 days: 0,1,0,5,6,7,8
+After  4 days: 6,0,6,4,5,6,7,8,8
+After  5 days: 5,6,5,3,4,5,6,7,7,8
+After  6 days: 4,5,4,2,3,4,5,6,6,7
+After  7 days: 3,4,3,1,2,3,4,5,5,6
+After  8 days: 2,3,2,0,1,2,3,4,4,5
+After  9 days: 1,2,1,6,0,1,2,3,3,4,8
+After 10 days: 0,1,0,5,6,0,1,2,2,3,7,8
+After 11 days: 6,0,6,4,5,6,0,1,1,2,6,7,8,8,8
+After 12 days: 5,6,5,3,4,5,6,0,0,1,5,6,7,7,7,8,8
+After 13 days: 4,5,4,2,3,4,5,6,6,0,4,5,6,6,6,7,7,8,8
+After 14 days: 3,4,3,1,2,3,4,5,5,6,3,4,5,5,5,6,6,7,7,8
+After 15 days: 2,3,2,0,1,2,3,4,4,5,2,3,4,4,4,5,5,6,6,7
+After 16 days: 1,2,1,6,0,1,2,3,3,4,1,2,3,3,3,4,4,5,5,6,8
+After 17 days: 0,1,0,5,6,0,1,2,2,3,0,1,2,2,2,3,3,4,4,5,7,8
+After 18 days: 6,0,6,4,5,6,0,1,1,2,6,0,1,1,1,2,2,3,3,4,6,7,8,8,8,8
+```
+
+Each day, a 0 becomes a 6 and adds a new 8 to the end of the list, while each other number decreases by 1 if it was present at the start of the day.
+
+In this example, after 18 days, there are a total of 26 fish. After 80 days, there would be a total of `5934`.
+
+Find a way to simulate lanternfish. *How many lanternfish would there be after 80 days?*
+
+```{r input}
+test <- "3,4,3,1,2"
+
+input <- read_lines("input_day06.txt")
+```
+
+Let's try to not keep track of each individual fish, as that could become 
+unwieldy very quickly if, as the narrative implies, the fish grow 
+exponentially. (The example starts with 5 and after 80 days has 5984!)
+
+Instead, let's keep track of the counts of each fish "level" (days until 
+a new fish is created)...
+
+```{r puzzle 1}
+# change this variable to run either test or full puzzle data
+puz1 <- input
+
+# create dummy table from 0 to 8 as those are our min/max values for a fish "timer"
+
+dummy <- tibble(level = as.character(0:8), n = 0)
+
+initial <- 
+  puz1 %>% 
+  str_split(",") %>% 
+  pluck(1) %>% 
+  tibble(level = .) %>% 
+  count(level)
+
+initial <- 
+  dummy %>% 
+  left_join(initial, by = "level") %>% 
+  mutate(n.y = replace_na(n.y, 0),
+         n = n.x + n.y) %>% 
+  select(level, n)
+
+initial
+
+# at each step, we need to (in "parallel", not "serially")
+# (a) for any fish at level 0: add same number for next step at level 6 and 8
+# (b) shift each level down one to signify a day has passed (not including a)
+
+fish_step <- function(.x, .ignore) {
+  
+  zeros <- .x$n[.x$level == "0"]
+  
+  .x$n[.x$level == "0"] <- 0
+  
+  .x$n <- 
+    lead(.x$n) %>% 
+    replace_na(0)
+  
+  .x$n[.x$level %in% c("6", "8")] <- 
+    .x$n[.x$level %in% c("6", "8")] + zeros
+  
+  .x
+}
+
+reduce(.x = 1:80, .f = fish_step, .init = initial) %>% 
+  pluck("n") %>% 
+  sum()
+
+
+```
+
+After 80 days, we would have `371379` lanternfish.
+
+
+
+# Puzzle 2 =========================================================
+
+Same execution as above, just a longer reduce vector
+```{r puzzle 2}
+reduce(.x = 1:256, .f = fish_step, .init = initial) %>% 
+  pluck("n") %>% 
+  sum()
+```
+
+After 256 days, we would have `1674303997472` lanternfish.
+(~ 1.7 trillion)
