@@ -101,8 +101,98 @@ input <-
 
 ```
 
-Can we figure out how often each segment shows up in normal number outputs? 
-If they're unique, then we could decipher the inputs based on output frequencies...?
+```{r puzzle 1}
+nums <- 
+  c("abcefg", "cf", "acdeg", "acdfg", "bcdf", "abdfg", "abdefg", "acf", "abcdefg", "abcdfg")
+
+unique_lengths <- 
+  str_length(nums) %>% 
+  table() %>% 
+  .[. == 1] %>% 
+  names() %>% 
+  as.integer()
+
+input$outputs %>% 
+  map(~str_split(.x, " ") %>% 
+        pluck(1) %>% 
+        str_length() %>% 
+        {. %in% unique_lengths} %>% 
+        sum()) %>% 
+  reduce(`+`)
+
+```
+
+Out input has `330` of the digits 1, 4, 7, or 8
+
+
+# Puzzle 2 ==========
+
+Through a little deduction, you should now be able to determine the remaining digits. Consider again the first example above:
+
+```
+acedgfb cdfbe gcdfa fbcad dab cefabd cdfgeb eafb cagedb ab |
+cdfeb fcadb cdfeb cdbaf
+```
+
+After some careful analysis, the mapping between signal wires and segments only make sense in the following configuration:
+
+```
+dddd
+e    a
+e    a
+ffff
+g    b
+g    b
+cccc
+```
+
+So, the unique signal patterns would correspond to the following digits:
+
+```
+acedgfb: 8
+cdfbe: 5
+gcdfa: 2
+fbcad: 3
+dab: 7
+cefabd: 9
+cdfgeb: 6
+eafb: 4
+cagedb: 0
+ab: 1
+```
+
+Then, the four digits of the output value can be decoded:
+
+```
+cdfeb: 5
+fcadb: 3
+cdfeb: 5
+cdbaf: 3
+```
+
+Therefore, the output value for this entry is `5353`.
+
+Following this same process for each entry in the second, larger example above, the output value of each entry can be determined:
+
+```
+fdgacbe cefdb cefbgd gcbe: 8394
+fcgedb cgb dgebacf gc: 9781
+cg cg fdcagb cbg: 1197
+efabcd cedba gadfec cb: 9361
+gecf egdcabf bgf bfgea: 4873
+gebdcfa ecba ca fadegcb: 8418
+cefg dcbef fcge gbcadfe: 4548
+ed bcgafe cdgba cbgef: 1625
+gbdfcae bgc cg cgb: 8717
+fgae cfgab fg bagce: 4315
+```
+
+Adding all of the output values in this larger example produces `61229`.
+
+For each entry, determine all of the wire/segment connections and decode the four-digit output values. *What do you get if you add up all of the output values?*
+
+
+
 
 
 I looked at David Robinson on twitter for a hint:
@@ -114,51 +204,85 @@ it shares with other numbers.  For example, the number 2 has segments "acdeg" an
 Let's figure out these fingerprints:
 
 ```{r fingerprints}
-nums <- 
-  tibble(val = as.character(0:9),
-       segs = c("abcefg", "cf", "acdeg", "acdfg", "bcdf",
-                "abdfg", "abdefg", "acf", "abcdefg", "abcdfg"))
+# alphabetize input
+test <- 
+  tibble(signals = "acedgfb cdfbe gcdfa fbcad dab cefabd cdfgeb eafb cagedb ab", 
+         outputs = "cdfeb fcadb cdfeb cdbaf")
 
-fp_base <- 
- nums %>% 
-  mutate(segs = str_split(segs, "")) %>% 
-  unnest(segs) 
+input <- 
+  input %>% 
+  mutate(across(.fns = ~ str_split(.x, " "))) %>% 
+  mutate(across(.fns = ~ map_chr(.x, .f = ~ str_split(.x, "") %>% 
+                                   map(.f = ~ {.x[order(.x)]} %>% 
+                                         str_c(collapse = "")) %>% 
+                                   str_c(collapse = " ")))) 
 
-fp <- 
-  fp_base %>% 
-  inner_join(., count(fp_base, segs), by = "segs") %>% 
-    select(-segs) %>% 
-    arrange(val, n) %>% 
-    group_by(val) %>% 
-    summarize(fp = str_c(n, collapse = "_"))
-    
-fp
-
-# create fingerprint function?
-    
-    
-
-
-
-   
-   
+fp <- function(.x) {
   
+  .lu <- 
+    .x  %>% 
+    str_split("") %>% 
+    unlist() %>% 
+    table()
+  
+  .v <- 
+    .x %>% 
+    str_split("") %>% 
+    map(.x = ., 
+        .f = ~ map(.x, 
+                   ~ as.character(.lu[.x])) %>% 
+          unlist() %>% 
+          {.[order(.)]} %>% 
+          str_c(collapse = ".")) %>% 
+    unlist()
+  
+  names(.v) <- .x
+  
+  .v
+  
+}
+
+
+lookup <- 
+  tibble(n = 0:9, 
+         fp = fp(nums))
+
+
+# .signal <- input[1, ]$signals
+# .output <- input[1, ]$outputs
+
+fun_puz2 <- function(.signal, .output, .lu = lookup) {
+  
+  .o <- 
+    str_split(.output, " ") %>% 
+    pluck(1) %>% 
+    tibble(label = .)
+  
+  .x <- 
+    str_split(.signal, " ") %>% 
+    pluck(1) %>% 
+    fp()
+  
+  .x <- tibble(fp = .x, 
+               label = names(.x))
+  
+  .o %>% 
+    inner_join(.x, by = "label") %>% 
+    inner_join(.lu, by = "fp") %>% 
+    pluck("n") %>% 
+    str_c(collapse = "") %>% 
+    parse_integer()
+  
+}
+
+input %>% 
+  mutate(val = map2_int(.x = signals, 
+                        .y = outputs, 
+                        .f = fun_puz2)) %>% 
+  pluck("val") %>% 
+  sum()
+
+
 ```
 
-
-```{r puzzle 1}
-
-```
-
-
-
-
-
-# Puzzle 2 ==========
-
-
-```{r puzzle 2}
-
-```
-
-
+`1010472` is the sum of all of our output values.
