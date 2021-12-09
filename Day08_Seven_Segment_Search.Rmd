@@ -193,8 +193,6 @@ For each entry, determine all of the wire/segment connections and decode the fou
 
 
 
-
-
 I looked at David Robinson on twitter for a hint:
 https://twitter.com/drob/status/1468631001077329926 
 
@@ -204,11 +202,12 @@ it shares with other numbers.  For example, the number 2 has segments "acdeg" an
 Let's figure out these fingerprints:
 
 ```{r fingerprints}
-# alphabetize input
 test <- 
   tibble(signals = "acedgfb cdfbe gcdfa fbcad dab cefabd cdfgeb eafb cagedb ab", 
          outputs = "cdfeb fcadb cdfeb cdbaf")
 
+
+# alphabetize input
 input <- 
   input %>% 
   mutate(across(.fns = ~ str_split(.x, " "))) %>% 
