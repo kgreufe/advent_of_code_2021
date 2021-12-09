@@ -1,0 +1,247 @@
+---
+title: ''
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+options(scipen = 20)
+
+library(tidyverse)
+```
+
+# Day 09: Smoke Basin
+
+# Puzzle 1 ==========
+
+These caves seem to be lava tubes. Parts are even still volcanically active; small hydrothermal vents release smoke into the caves that slowly settles like rain.
+
+If you can model how the smoke flows through the caves, you might be able to avoid it and be that much safer. The submarine generates a heightmap of the floor of the nearby caves for you (your puzzle input).
+
+Smoke flows to the lowest point of the area it's in. For example, consider the following heightmap:
+
+```
+2199943210
+3987894921
+9856789892
+8767896789
+9899965678
+```
+
+Each number corresponds to the height of a particular location, where *9 is the highest and 0 is the lowest* a location can be.
+
+Your first goal is to find the *low points* - the locations that are lower than any of its adjacent locations. Most locations have four adjacent locations (up, down, left, and right); locations on the edge or corner of the map have three or two adjacent locations, respectively. (*Diagonal locations do not count as adjacent*.)
+
+In the above example, there are *four* low points, all highlighted: two are in the first row (a 1 and a 0), one is in the third row (a 5), and one is in the bottom row (also a 5). All other locations on the heightmap have some lower adjacent location, and so are not low points.
+
+The *risk level* of a low point is *1 plus its height*. In the above example, the risk levels of the low points are 2, 1, 6, and 6. The sum of the risk levels of all low points in the heightmap is therefore *15*.
+
+Find all of the low points on your heightmap. *What is the sum of the risk levels of all low points on your heightmap?*
+
+```{r input}
+# function will parse input into an integer matrix
+parse_input <- function(.x) {
+  
+  .x <- read_lines(.x) 
+  
+  .l <- max(str_length(.x))
+  
+  map(.x, ~str_split(.x, "") %>% pluck(1)) %>% 
+    unlist() %>% 
+    parse_integer() %>% 
+    matrix(data = ., ncol = .l, byrow = TRUE)
+  
+}
+
+
+test <- "2199943210\n3987894921\n9856789892\n8767896789\n9899965678\n"
+
+test <- parse_input(test)
+input <- parse_input("input_day09.txt")
+
+
+```
+
+
+```{r puzzle 1}
+# change assignment here to flip between test and input
+puz1 <- input
+
+# function to check neighbors and return TRUE if location is lower than the rest
+lowpt <- function(.row, .col, .m = puz1) {
+  
+  .v <- .m[.row, .col]
+  
+  up <- if (.row == 1L) {TRUE} else {.v < .m[.row - 1, .col]}
+  down <- if (.row == nrow(.m)) {TRUE} else {.v < .m[.row + 1, .col]}
+  left <- if (.col == 1L) {TRUE} else {.v < .m[.row, .col - 1]}
+  right <- if (.col == ncol(.m)) {TRUE} else {.v < .m[.row, .col + 1]}
+  
+  if (up && down && left && right) {
+    return(TRUE)
+  } else {
+    return(FALSE)
+  }
+}
+
+lp_index <- matrix(FALSE, nrow = nrow(puz1), ncol = ncol(puz1))
+
+for (i in seq_len(nrow(lp_index))) {
+  for (j in seq_len(ncol(lp_index))) {
+    lp_index[i, j] <- lowpt(.row = i, .col = j)
+  }
+}
+
+
+sum(puz1[lp_index] + 1L)
+```
+
+The sum of the risk levels of all low points in out heightmap is `456`
+
+
+
+# Puzzle 2 ==========
+
+Next, you need to find the largest basins so you know what areas are most important to avoid.
+
+A *basin* is all locations that eventually flow downward to a single low point. Therefore, *every low point has a basin*, although some basins are very small. *Locations of height 9 do not count as being in any basin*, and all other locations will always be part of exactly one basin.
+
+The size of a basin is the number of locations within the basin, including the low point. The example above has four basins.
+
+The top-left basin, size 3:
+```
+21xxxxxxxx
+3xxxxxxxxx
+xxxxxxxxxx
+xxxxxxxxxx
+xxxxxxxxxx
+```
+
+The top-right basin, size 9:
+```
+xxxxx43210
+xxxxxx4x21
+xxxxxxxxx2
+xxxxxxxxxx
+xxxxxxxxxx
+```
+
+The middle basin, size 14:
+```
+xxxxxxxxxx
+xx878xxxxx
+x85678xxxx
+87678xxxxx
+x8xxxxxxxx
+```
+
+The bottom-right basin, size 9:
+```
+xxxxxxxxxx
+xxxxxxxxxx
+xxxxxxx8xx
+xxxxxx678x
+xxxxx65678
+```
+
+Find the three largest basins and multiply their sizes together. In the above example, this is `9 * 14 * 9 = 1134`.
+
+*What do you get if you multiply together the sizes of the three largest basins?*
+
+?Recursive function to find closest letter??
+
+```{r puzzle 2}
+lp_basins <- lp_index
+puz2 <- puz1
+
+# how many basins do we have?
+nbasins <- length(lp_basins[lp_basins])
+
+puz_letters <- 
+  crossing(a = letters, b = letters) %>% 
+  mutate(c = str_c(a, b)) %>% 
+  pull(c) %>% 
+  { .[1:nbasins] }
+
+# assign each basin a letter label
+puz2[lp_basins] <- puz_letters
+
+# we will ignore 9's, so flag those
+puz2[puz2 == 9L] <- "_"
+
+# create table of basin locations
+basin_loc <- tibble(basin = puz_letters, row = 0L, col = 0L)
+
+for (i in seq_len(nrow(puz1))) {
+  for (j in seq_len(ncol(puz1))) {
+    .v <- puz2[i, j]
+    if (!(.v %in% letters) ) next
+    basin_loc$row[basin_loc$basin == .v] <- i
+    basin_loc$col[basin_loc$basin == .v] <- j
+  }
+}
+
+
+# recursive function to find closest basin point
+low_seek <- function(.r, .c, .m = puz2, .bc = basin_loc) {
+  
+  .v <- .m[.r, .c]
+  
+  if (.v %in% puz_letters || .v == "_") {
+    return(.v)
+  } else {
+    .v <- parse_integer(.v)
+  }
+  
+  # is the position above lower?
+  if (.r != 1 && 
+      .m[.r - 1, .c] != "_" && 
+      (.m[.r - 1, .c] %in% puz_letters || parse_integer(.m[.r - 1, .c]) < .v ) ) {
+    low_seek(.r - 1, .c)
+    
+    # is the position below lower?
+  } else if (.r != nrow(.m) && 
+             .m[.r + 1, .c] != "_" && 
+             (.m[.r + 1, .c] %in% puz_letters || parse_integer(.m[.r + 1, .c]) < .v)  ) {
+    low_seek(.r + 1, .c)
+    
+    # is the position right lower?
+  } else if (.c != ncol(.m) && 
+             .m[.r, .c + 1] != "_" && 
+             (.m[.r, .c + 1] %in% puz_letters || parse_integer(.m[.r, .c + 1]) < .v) ) {
+    low_seek(.r, .c + 1)
+    
+    # is the position left lower?
+  } else if (.c != 1 && 
+             .m[.r, .c - 1] != "_" && 
+             (.m[.r, .c - 1] %in% puz_letters ||parse_integer(.m[.r, .c - 1]) < .v ) ) {
+    low_seek(.r, .c - 1)
+  }
+  
+}
+
+puz2_answer <- puz2
+
+for (i in seq_len(nrow(puz2))) {
+  for (j in seq_len(ncol(puz2))) {
+    puz2_answer[i, j] <- low_seek(i, j) 
+  }
+}
+
+puz2_answer %>% 
+  as.character() %>% 
+  {.[. != "_"]} %>% 
+  as_tibble() %>% 
+  count(value, sort = TRUE) %>% 
+  head(3) %>% 
+  pluck("n") %>% 
+  prod()
+
+
+```
+
+
+Our answer to puzzle 2 is `1047744`
