@@ -1,0 +1,178 @@
+---
+title: ''
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+options(scipen = 20)
+
+library(tidyverse)
+```
+
+# Day 11: Dumbo Octopus
+
+# Puzzle 1 ==========
+
+You enter a large cavern full of rare bioluminescent dumbo octopuses! They seem to not like the Christmas lights on your submarine, so you turn them off for now.
+
+There are 100 octopuses arranged neatly in a 10 by 10 grid. Each octopus slowly gains *energy* over time and *flashes* brightly for a moment when its energy is full. Although your lights are off, maybe you could navigate through the cave without disturbing the octopuses if you could predict when the flashes of light will happen.
+
+Each octopus has an *energy level* - your submarine can remotely measure the energy level of each octopus (your puzzle input). For example:
+
+```
+5483143223
+2745854711
+5264556173
+6141336146
+6357385478
+4167524645
+2176841721
+6882881134
+4846848554
+5283751526
+```
+
+The energy level of each octopus is a value between 0 and 9. Here, the top-left octopus has an energy level of 5, the bottom-right one has an energy level of 6, and so on.
+
+You can model the energy levels and flashes of light in *steps.* During a single step, the following occurs:
+
+First, the energy level of each octopus increases by 1.
+
+Then, any octopus with an *energy level greater than 9 flashes*. This increases the energy level of all adjacent octopuses by 1, including octopuses that are diagonally adjacent. If this causes an octopus to have an energy level greater than 9, *it also flashes*. This process continues as long as new octopuses keep having their energy level increased beyond 9. (*An octopus can only flash at most once per step.*)
+
+Finally, any octopus that flashed during this step has its energy level set to 0, as it used all of its energy to flash.
+
+Adjacent flashes can cause an octopus to flash on a step even if it begins that step with very little energy. Consider the middle octopus with 1 energy in this situation:
+
+```
+Before any steps:
+11111
+19991
+19191
+19991
+11111
+
+After step 1:
+34543
+40004
+50005
+40004
+34543
+
+After step 2:
+45654
+51115
+61116
+51115
+45654
+```
+
+```{r input}
+parse_input <- function(.x) {
+  
+  nr <- str_locate(.x, "\n")[1, 1] - 1
+  nc <- str_count(.x, "\n")
+  
+  .x <- 
+    str_replace_all(.x, "\n", "") %>% 
+    {str_split(., "")[[1]]} %>% 
+    parse_integer()
+  
+  crossing(row = seq_len(nr),
+           col = seq_len(nc)) %>% 
+    mutate(val = .x)
+}
+
+test1 <- parse_input("11111\n19991\n19191\n19991\n11111\n")
+test2 <- parse_input("5483143223\n2745854711\n5264556173\n6141336146\n6357385478\n4167524645\n2176841721\n6882881134\n4846848554\n5283751526\n")
+input <- parse_input(read_file("input_day11.txt"))
+```
+
+```{r puzzle 1}
+puz1 <- list(input, 0L)
+
+octo_step <- function(.l, .ignore) {
+  
+  .df <- .l[[1]]
+  
+  # step 0: add "flash" column to track which ones have flashed or not
+  .df <- mutate(.df, flash = FALSE)
+  
+  # step 1: increase all values by one for this step 
+  #   only those that are 9 or below
+  .df$val[.df$val < 10] <- .df$val[.df$val < 10] + 1L
+  
+  # step 2: for any values that are at 9, it will "flash" and increase any neighbors not already at 9 by 1, this will cycle until all 9's have "flashed"
+  neighbor_index <- 
+    crossing(ri = c(-1L, 0L, 1L), 
+             ci = c(-1L, 0L, 1L)) %>% 
+    filter(ri != 0 | ci != 0)
+  
+  
+  while (nrow(.df[.df$flash == FALSE & .df$val >= 10, ]) > 0) {
+    
+    .df <- arrange(.df, row, col)
+    .i <- .df$flash == FALSE & .df$val >= 10
+    
+    .df <- 
+      .df[.i, ] %>% 
+      inner_join(neighbor_index, by = character()) %>% 
+      mutate(rj = row + ri, 
+             cj = col + ci) %>% 
+      count(rj, cj) %>% 
+      right_join(.df, by = c("rj"  = "row", "cj" = "col")) %>% 
+      mutate(across(where(is.numeric), ~ if_else(is.na(.x), 0L, .x))) %>% 
+      rename(row = rj, col = cj) %>% 
+      mutate(val = val + n) %>% 
+      select(row, col, val, flash)
+    
+    .df <- arrange(.df, row, col)
+    
+    .df$flash[.i] <- TRUE
+    
+    
+  }
+  
+  # step 3: any positions that have "flashed" get their values reset to zero
+  .df$val[.df$flash == TRUE & .df$val >= 10] <- 0L
+  
+  .f <- sum(.df$flash == TRUE)
+  
+  list(select(.df, -flash), .l[[2]] + .f)
+}
+
+
+reduce(1:100, octo_step, .init = puz1)
+ 
+
+```
+
+With our input, we have accumulated `1661` after 100 rounds.
+
+
+# Puzzle 2 ==========
+
+It seems like the individual flashes aren't bright enough to navigate. However, you might have a better option: the flashes seem to be synchronizing!
+
+In the example above, the first time all octopuses flash simultaneously is step 195.
+
+If you can calculate the exact moments when the octopuses will all flash simultaneously, you should be able to navigate through the cavern. *What is the first step during which all octopuses flash?*
+
+```{r puzzle 2}
+puz2 <- accumulate(1:350, octo_step, .init = puz1) 
+
+puz2 %>% 
+  map(.f = ~ pluck(.x, 1) %>% 
+        pull(val) %>% 
+        {sum(. != 0)}) %>% 
+  unlist() %>% 
+  {which(. == 0)} %>% 
+  {min(.) - 1}
+
+```
+
+On step `334` all of our octopuses flash at the same time. 
