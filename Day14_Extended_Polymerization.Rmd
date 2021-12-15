@@ -1,0 +1,172 @@
+---
+title: ''
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+options(scipen = 20)
+
+library(tidyverse)
+```
+
+# Day 14: Extended Polymerization
+
+# Puzzle 1 
+
+The incredible pressures at this depth are starting to put a strain on your submarine. The submarine has polymerization equipment that would produce suitable materials to reinforce the submarine, and the nearby volcanically-active caves should even have the necessary input elements in sufficient quantities.
+
+The submarine manual contains instructions for finding the optimal polymer formula; specifically, it offers a *polymer template* and a list of *pair insertion rules* (your puzzle input). You just need to work out what polymer would result after repeating the pair insertion process a few times.
+
+For example:
+
+```
+NNCB
+
+CH -> B
+HH -> N
+CB -> H
+NH -> C
+HB -> C
+HC -> B
+HN -> C
+NN -> C
+BH -> H
+NC -> B
+NB -> B
+BN -> B
+BB -> N
+BC -> B
+CC -> N
+CN -> C
+```
+
+The first line is the *polymer template* - this is the starting point of the process.
+
+The following section defines the *pair insertion rules*. A rule like `AB -> C` means that when elements A and B are immediately adjacent, element C should be inserted between them. These insertions all happen simultaneously.
+
+So, starting with the polymer template `NNCB`, the first step simultaneously considers all three pairs:
+
+The first pair (NN) matches the rule `NN -> C`, so element C is inserted between the first N and the second N.
+The second pair (NC) matches the rule `NC -> B`, so element B is inserted between the N and the C.
+The third pair (CB) matches the rule `CB -> H`, so element H is inserted between the C and the B.
+
+Note that these pairs overlap: the second element of one pair is the first element of the next pair. Also, because all pairs are considered simultaneously, inserted elements are not considered to be part of a pair until the next step.
+
+After the first step of this process, the polymer becomes `NCNBCHB`.
+
+Here are the results of a few steps using the above rules:
+
+```
+Template:     NNCB
+After step 1: NCNBCHB
+After step 2: NBCCNBBBCBHCB
+After step 3: NBBBCNCCNBBNBNBBCHBHHBCHB
+After step 4: NBBNBNBBCCNBCNCCNBBNBBNBBBNBBNBBCBHCBHHNHCBBCBHCB
+```
+
+This polymer grows quickly. After step 5, it has length 97; After step 10, it has length 3073. After step 10, B occurs 1749 times, C occurs 298 times, H occurs 161 times, and N occurs 865 times; taking the quantity of the most common element (B, 1749) and subtracting the quantity of the least common element (H, 161) produces `1749 - 161 = 1588`.
+
+*Apply 10 steps of pair insertion* to the polymer template and find the most and least common elements in the result. *What do you get if you take the quantity of the most common element and subtract the quantity of the least common element?*
+
+```{r input}
+test <- read_lines("NNCB\n\nCH -> B\nHH -> N\nCB -> H\nNH -> C\nHB -> C\nHC -> B\nHN -> C\nNN -> C\nBH -> H\nNC -> B\nNB -> B\nBN -> B\nBB -> N\nBC -> B\nCC -> N\nCN -> C\n")
+
+input <- read_lines("input_day14.txt")
+
+parse_input <- function(.x) {
+  
+  .i <- str_detect(.x, "->")
+  
+  start <- .x[!.i & .x != ""]
+  
+  rules <- 
+    tibble(x = .x[.i]) %>% 
+    separate(x, c("pair", "insert"), " -> ")
+  
+  pairs <- start %>% 
+    str_split("") %>% 
+    pluck(1) %>% 
+    str_c(lag(.), .) %>% 
+    .[!is.na(.)] %>% 
+    tibble(pair = .) %>% 
+    count(pair)
+  
+  counts <- 
+    start %>% 
+    str_split("") %>% 
+    pluck(1) %>% 
+    tibble(chr = .) %>% 
+    count(chr)
+  
+  .l <- list(pairs = pairs, counts = counts)
+  
+  assign("tbl_list", .l, globalenv())
+  assign("rules", rules, globalenv())
+
+}
+
+```
+
+```{r puzzle 1}
+puz1 <- input
+
+parse_input(puz1)
+
+step <- function(.list, .ignore, .rules = rules) {
+  
+  counts <- .list$counts
+  pairs <- .list$pairs 
+  
+  # for each step, first add new characters we're inserting to the "counts" table
+  counts <- 
+    pairs %>% 
+    left_join(.rules, by = "pair") %>% 
+    select(chr = insert, n) %>% 
+    bind_rows(counts) %>% 
+    count(chr, wt = n)
+  
+  # next, convert pairs we have to new pairs based on insert rules
+  pairs <- 
+    pairs %>% 
+    left_join(.rules, by = "pair") %>% 
+    mutate(first = str_c(str_sub(pair, end = 1), insert), 
+           second = str_c(insert, str_sub(pair, start = 2)), 
+           both = str_c(first, second, sep = ",")) %>% 
+    select(both, n) %>% 
+    separate_rows(both) %>% 
+    rename(pair = both) %>% 
+    count(pair, wt = n)
+  
+  list(pairs = pairs, counts = counts)
+}
+
+answer1 <- reduce(1:10, step, .init = tbl_list)
+
+max(answer1$counts$n) - min(answer1$counts$n)
+
+```
+
+After 10 steps, from our input, when we take the quantity of the most common element and subtract the quantity of the least common element we get `2891`
+
+
+
+# Puzzle 2 
+
+The resulting polymer isn't nearly strong enough to reinforce the submarine. You'll need to run more steps of the pair insertion process; *a total of 40 steps should do it*.
+
+In the above example, the most common element is B (occurring 2192039569602 times) and the least common element is H (occurring 3849876073 times); subtracting these produces 2188189693529.
+
+*Apply 40 steps of pair insertion* to the polymer template and find the most and least common elements in the result. *What do you get if you take the quantity of the most common element and subtract the quantity of the least common element?*
+
+
+```{r puzzle 2}
+answer2 <- reduce(1:40, step, .init = tbl_list)
+
+max(answer2$counts$n) - min(answer2$counts$n)
+```
+
+After 40 steps, the difference between our most common and least common letter element is `4607749009683`
