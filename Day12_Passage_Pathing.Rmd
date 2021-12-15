@@ -213,8 +213,184 @@ Out input has `3802` unique paths that visit a specific small cave at most once 
 
 ## Puzzle 2
 
+After reviewing the available paths, you realize you might have time to visit a single small cave twice. Specifically, big caves can be visited any number of times, a single small cave can be visited at most twice, and the remaining small caves can be visited at most once. However, the caves named start and end can only be visited exactly once each: once you leave the start cave, you may not return to it, and once you reach the end cave, the path must end immediately.
 
-```{r puzzle2}
+Now, the `36` possible paths through the first example above are:
 
 ```
+start,A,b,A,b,A,c,A,end
+start,A,b,A,b,A,end
+start,A,b,A,b,end
+start,A,b,A,c,A,b,A,end
+start,A,b,A,c,A,b,end
+start,A,b,A,c,A,c,A,end
+start,A,b,A,c,A,end
+start,A,b,A,end
+start,A,b,d,b,A,c,A,end
+start,A,b,d,b,A,end
+start,A,b,d,b,end
+start,A,b,end
+start,A,c,A,b,A,b,A,end
+start,A,c,A,b,A,b,end
+start,A,c,A,b,A,c,A,end
+start,A,c,A,b,A,end
+start,A,c,A,b,d,b,A,end
+start,A,c,A,b,d,b,end
+start,A,c,A,b,end
+start,A,c,A,c,A,b,A,end
+start,A,c,A,c,A,b,end
+start,A,c,A,c,A,end
+start,A,c,A,end
+start,A,end
+start,b,A,b,A,c,A,end
+start,b,A,b,A,end
+start,b,A,b,end
+start,b,A,c,A,b,A,end
+start,b,A,c,A,b,end
+start,b,A,c,A,c,A,end
+start,b,A,c,A,end
+start,b,A,end
+start,b,d,b,A,c,A,end
+start,b,d,b,A,end
+start,b,d,b,end
+start,b,end
+```
 
+The slightly larger example above now has 103 paths through it, and the even larger example now has 3509 paths through it.
+
+*Given these new rules, how many paths through this cave system are there?*
+
+
+```{r puzzle2, eval = FALSE}
+tictoc::tic("puzzle 2")
+puz2 <- input
+
+# .x <- "start,A,b,A,b,A,b,A,b,d,A,b,d,b,A,b,A,b"
+# .tbl <- puz2
+
+step_fun2 <- function(.x, .tbl = puz2) {
+  # browser()
+  .t <- tibble(v = .x) %>% 
+    mutate(path = map(v, ~ str_split(.x, ",") %>% 
+                        pluck(1)), 
+           join = map_chr(path, ~ {.x[length(.x)]}))
+    
+  .t <- 
+    .t %>% 
+    mutate(twice_count = map_int(path, ~ table(.x) %>% 
+                                  {.[!(names(.) %in% c("end", "start"))]} %>% 
+                                  {.[map_lgl(names(.), islower)]} %>% 
+                                  {. >= 2} %>% 
+                                  sum()), 
+           thrice_count = map_int(path, ~ table(.x) %>% 
+                                  {.[!(names(.) %in% c("end", "start"))]} %>% 
+                                  {.[map_lgl(names(.), islower)]} %>% 
+                                  {. >= 3} %>% 
+                                  sum())
+             ) 
+  
+  
+  .t <- 
+    .t %>% 
+    rowwise() %>% 
+    mutate(join = case_when(join %in% c("end", "fail") ~ join,
+                            join == "start" & length(unlist(path)) > 1 ~ "fail",
+                            islower(join) & 
+                              join %in% head(unlist(path), -1) & 
+                              (twice_count > 1 | thrice_count > 0) ~ NA_character_,
+                            TRUE ~ join)) %>% 
+    ungroup()
+  
+  .t <- 
+    .t %>% 
+    left_join(.tbl, by = c("join" = "i")) %>% 
+    rowwise() %>% 
+    mutate(o = case_when(join %in% c("end", "fail") ~ "", 
+                         join == "start" & length(unlist(path)) > 1 ~ "",
+                         is.na(o) ~ "fail", 
+                         TRUE ~ o), 
+           new = if_else(o != "", str_c(v, o, sep = ","), v)) %>% 
+    ungroup()
+  
+  pull(.t, new)
+  
+}
+
+p2_string <- "start"
+p2_ends <- ends_fun(p2_string)
+
+while ( !(all(p2_ends %in% c("end", "fail", "start"))) || p2_string == "start" ) {
+  p2_string <- step_fun2(p2_string)
+  p2_ends <- ends_fun(p2_string)
+  # print(p2_string)
+}
+  
+
+p2_string[p2_ends == "end"] %>% unique() %>% length()
+
+tictoc::toc()
+```
+
+Above did not complete after a long time waiting. 
+
+I tried a solution using recursion but couldn't get it to run correctly or how I wanted it to. 
+
+Here's a solution from David Robinson (twitter.com/drob)
+
+https://twitter.com/drob/status/1470154240349937665
+
+```{r recursive}
+d <- 
+  tibble(x = read_lines("input_day12.txt")) %>% 
+  separate(x, c("from", "to"), "-")
+
+# creating a named list of connections
+cxns <- 
+  d %>% 
+  select(from = to, to = from) %>% 
+  bind_rows(d) %>% 
+  group_by(from) %>% 
+  summarize(connections = list(to)) %>% 
+  deframe()
+
+# bfs = breadth-first search
+bfs <- function(node, visited_small = NULL, part1 = FALSE) {
+  
+  # base case: we reached the end
+  if (node == "end") {
+    return(list(node))
+  }
+  
+  # the "start" node can never be revisited
+  # `"start" %in% visited_small` ensures we don't stop at the very beginning
+  if (node == "start" && "start" %in% visited_small) {
+    return(NULL)
+  }
+  
+  if (str_to_upper(node) != node) {
+    visited_small <- c(visited_small, node)
+  }
+  
+  possible_next <- pluck(cxns, node)
+  
+  # in part 1, we cannot revisit any small nodes
+  # in part 2, we can revisit a small node once
+  
+  if(part1 || any(duplicated(visited_small))) {
+    possible_next <- setdiff(possible_next, visited_small)
+  }
+  
+  map(possible_next, bfs, visited_small = visited_small, part1 = part1) %>% 
+    do.call(c, .) %>% 
+    map(~ c(node, .))
+  
+}
+
+# part 1
+bfs("start", part1 = TRUE) %>% length()
+
+# part 2
+bfs("start") %>% length()
+```
+
+Our puzzle 2 answer is `99448`
