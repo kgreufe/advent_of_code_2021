@@ -237,7 +237,29 @@ After the first fold, we have `610` dots showing.
 ## Puzzle 2
 
 
-```{r puzzle2}
+Finish folding the transparent paper according to the instructions. The manual says the code is always eight capital letters.
 
+*What code do you use to activate the infrared thermal imaging camera system?*
+
+```{r puzzle2}
+puz2 <- reduce2(.x = folds$axis, .y = folds$value, slice_n_fold, .init = .m) 
+
+.a <- 
+  crossing(x = 1:ncol(puz2), 
+           y = 1:nrow(puz2)) %>% 
+  mutate(val = 0L)
+
+for (i in seq_len(ncol(puz2))) {
+  for (j in seq_len(nrow(puz2))) {
+    .a[.a$x == i & .a$y == j, "val"] <- puz2[j, i]
+  }
+}
+
+.a %>% 
+  mutate(val = if_else(val > 0L, 1L, 0L)) %>% 
+  filter(val != 0L) %>% 
+  ggplot(aes(x, -y)) +
+  geom_tile()
 ```
 
+After all the folds, our code is `PZFJHRFZ`
